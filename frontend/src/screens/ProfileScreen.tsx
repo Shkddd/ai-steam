@@ -1,23 +1,92 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { COLORS } from '../constants';
+import { api, TokenStorage } from '../services/api';
 
-const ProfileScreen: React.FC = () => {
+interface User } from '../services {
+  id: string;
+  username: string;
+  email: string;
+}
+
+const ProfileScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [favoritesCount, setFavoritesCount] = useState(0);
+  const [downloadsCount, setDownloadsCount] = useState(0);
+
+  // 加载用户信息
+  useEffect(() => {
+    loadUserInfo();
+  }, []);
+
+  const loadUserInfo = async () => {
+    try {
+      const savedToken = await TokenStorage.get();
+      if (savedToken) {
+        setToken(savedToken);
+        const response = await api.auth.me(savedToken);
+        if (response.success) {
+          setUser(response.user);
+          
+          // 获取收藏和下载数量
+          const favs = await api.user.favorites(savedToken);
+          if (favs.success) {
+            setFavoritesCount(favs.favorites.length);
+          }
+          
+          const downloads = await api.user.downloads(savedToken);
+          if (downloads.success) {
+            setDownloadsCount(downloads.downloads.length);
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Load user info error:', error);
+    }
+  };
+
+  const handleLogin = () => {
+    // TODO: 跳转到登录页面
+    Alert.alert('提示', '登录功能开发中');
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      '确认退出',
+      '确定要退出登录吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        { 
+          text: '确定', 
+          onPress: async () => {
+            await TokenStorage.remove();
+            setUser(null);
+            setToken(null);
+            setFavoritesCount(0);
+            setDownloadsCount(0);
+          }
+        },
+      ]
+    );
+  };
+
   const menuItems = [
-    { icon: '⬇️', title: '我的下载', badge: '3' },
-    { icon: '❤️', title: '我的收藏', badge: '12' },
-    { icon: '⭐', title: '评分记录', badge: '5' },
-    { icon: '💬', title: '我的评论', badge: '8' },
-    { icon: '👤', title: '账户设置', badge: '' },
-    { icon: '🔔', title: '通知设置', badge: '' },
-    { icon: '❓', title: '帮助与反馈', badge: '' },
-    { icon: 'ℹ️', title: '关于', badge: '' },
+    { icon: '⬇️', title: '我的下载', badge: String(downloadsCount), action: () => {} },
+    { icon: '❤️', title: '我的收藏', badge: String(favoritesCount), action: () => {} },
+    { icon: '⭐', title: '评分记录', badge: '0', action: () => {} },
+    { icon: '💬', title: '我的评论', badge: '0', action: () => {} },
+    { icon: '👤', title: '账户设置', badge: '', action: () => {} },
+    { icon: '🔔', title: '通知设置', badge: '', action: () => {} },
+    { icon: '❓', title: '帮助与反馈', badge: '', action: () => {} },
+    { icon: 'ℹ️', title: '关于', badge: '', action: () => {} },
   ];
 
   return (
@@ -29,25 +98,38 @@ const ProfileScreen: React.FC = () => {
 
       <ScrollView style={styles.content}>
         {/* User Card */}
-        <View style={styles.userCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>用</Text>
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>用户</Text>
-            <Text style={styles.userEmail}>user@example.com</Text>
-          </View>
-        </View>
+        {user ? (
+          <TouchableOpacity style={styles.userCard} onPress={handleLogout}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{user.username[0].toUpperCase()}</Text>
+            </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{user.username}</Text>
+              <Text style={styles.userEmail}>{user.email}</Text>
+            </View>
+            <Text style={styles.logoutText}>退出</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.userCard} onPress={handleLogin}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>?</Text>
+            </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>点击登录</Text>
+              <Text style={styles.userEmail}>登录后同步收藏和下载</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>3</Text>
+            <Text style={styles.statValue}>{downloadsCount}</Text>
             <Text style={styles.statLabel}>下载</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statValue}>{favoritesCount}</Text>
             <Text style={styles.statLabel}>收藏</Text>
           </View>
           <View style={styles.statDivider} />
@@ -187,6 +269,10 @@ const styles = StyleSheet.create({
   menuArrow: {
     fontSize: 20,
     color: COLORS.textSecondary,
+  },
+  logoutText: {
+    fontSize: 14,
+    color: COLORS.error,
   },
 });
 
