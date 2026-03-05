@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,12 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { COLORS, CATEGORIES, MOCK_APPS } from '../constants';
 import { AIApp, AppCategory } from '../types';
+import { api, AIApp as APIAIApp } from '../services/api';
 
 interface HomeScreenProps {
   navigation: any;
@@ -17,10 +20,35 @@ interface HomeScreenProps {
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [apps, setApps] = useState<AIApp[]>(MOCK_APPS);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filteredApps = selectedCategory === 'all'
-    ? MOCK_APPS
-    : MOCK_APPS.filter(app => app.category === selectedCategory);
+  // 加载应用列表
+  const loadApps = async (category?: string) => {
+    try {
+      const response = await api.apps.list(category);
+      if (response.success && response.apps.length > 0) {
+        setApps(response.apps);
+      }
+    } catch (error) {
+      console.log('API Error, using mock data:', error);
+      // API 失败时使用模拟数据
+      setApps(category === 'all' || !category ? MOCK_APPS : MOCK_APPS.filter(app => app.category === category));
+    }
+  };
+
+  useEffect(() => {
+    loadApps(selectedCategory);
+  }, [selectedCategory]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadApps(selectedCategory);
+    setRefreshing(false);
+  };
+
+  const filteredApps = apps;
 
   const renderAppItem = ({ item }: { item: AIApp }) => (
     <TouchableOpacity
@@ -84,13 +112,31 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </ScrollView>
 
       {/* App List */}
-      <FlatList
-        data={filteredApps}
-        renderItem={renderAppItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredApps}
+          renderItem={renderAppItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary]}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>暂无应用</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 };
@@ -200,6 +246,21 @@ const styles = StyleSheet.create({
   },
   appDownloads: {
     fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
+  },
+  emptyText: {
+    fontSize: 16,
     color: COLORS.textSecondary,
   },
 });

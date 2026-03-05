@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,11 @@ import {
   TextInput,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { COLORS, MOCK_APPS } from '../constants';
 import { AIApp } from '../types';
+import { api } from '../services/api';
 
 interface SearchScreenProps {
   navigation: any;
@@ -16,14 +18,41 @@ interface SearchScreenProps {
 
 const SearchScreen: React.FC<SearchScreenProps> = ({ navigation }) => {
   const [searchText, setSearchText] = useState('');
+  const [searchResults, setSearchResults] = useState<AIApp[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const searchResults = searchText
-    ? MOCK_APPS.filter(app =>
-        app.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        app.description.toLowerCase().includes(searchText.toLowerCase()) ||
-        app.tags.some(tag => tag.toLowerCase().includes(searchText.toLowerCase()))
-      )
-    : [];
+  // 搜索应用
+  useEffect(() => {
+    const searchApps = async () => {
+      if (!searchText.trim()) {
+        setSearchResults([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await api.apps.search(searchText);
+        if (response.success) {
+          setSearchResults(response.apps);
+        }
+      } catch (error) {
+        console.log('Search API Error:', error);
+        // 使用本地搜索
+        setSearchResults(
+          MOCK_APPS.filter(app =>
+            app.name.toLowerCase().includes(searchText.toLowerCase()) ||
+            app.description.toLowerCase().includes(searchText.toLowerCase()) ||
+            app.tags.some(tag => tag.toLowerCase().includes(searchText.toLowerCase()))
+          )
+        );
+      }
+      setLoading(false);
+    };
+
+    // 防抖搜索
+    const timeoutId = setTimeout(searchApps, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchText]);
 
   const renderAppItem = ({ item }: { item: AIApp }) => (
     <TouchableOpacity
